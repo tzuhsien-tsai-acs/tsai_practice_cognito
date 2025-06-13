@@ -1,0 +1,901 @@
+<<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tsai Cognito 登入系統</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.1691.0/aws-sdk.min.js" integrity="sha512-4gV3dPpAcqvQ9jdsvcIUIO5w51gLtEfKXrcdJqnhPLkCHMK+f3s/LwPSRKF26JmbFz+q3c6GLDQ8fYlIziH0Dg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://unpkg.com/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <style>
+        /* 全域重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* 頁面主體樣式 */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-y: auto; /* 允許 body 自身捲動，作為 fallback */
+        }
+        
+        /* 容器樣式 */
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
+            max-height: 95vh; /* 限制容器最大高度為視窗的 95% */
+            overflow-y: auto; /* 當內容超出最大高度時，容器內部出現捲動條 */
+            display: flex; /* 使用 Flexbox 佈局容器內部元素 */
+            flex-direction: column; /* 垂直排列子元素 */
+        }
+        
+        /* 標誌和標籤按鈕樣式 */
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+            flex-shrink: 0; /* 防止此元素在 Flex 容器中被壓縮 */
+        }
+        
+        .logo h1 {
+            color: #667eea;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .logo p {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            margin-bottom: 2rem;
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 4px;
+            flex-shrink: 0; /* 防止此元素在 Flex 容器中被壓縮 */
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .tab-button.active {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* 表單組件樣式 */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #374151;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-group small {
+            color: #6b7280;
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+            display: block;
+        }
+        
+        /* 按鈕樣式 */
+        .btn {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+        
+        .btn-primary:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        /* 訊息框樣式 */
+        .message {
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .message.success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        
+        .message.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+        
+        .message.info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        
+        /* 表單區塊顯示/隱藏 */
+        .form-section {
+            display: none;
+        }
+        
+        .form-section.active {
+            display: block;
+        }
+        
+        /* 用戶資訊區塊 */
+        .user-info {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .user-info h2 {
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+        
+        .user-info p {
+            margin-bottom: 0.5rem;
+            color: #6b7280;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+            margin-top: 1rem;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        /* 配置資訊區塊 */
+        .config-info {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #f9fafb;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: #6b7280;
+            flex-shrink: 0; /* 防止此元素在 Flex 容器中被壓縮 */
+            padding-right: 15px; /* 為捲動條預留空間 */
+        }
+        
+        .config-info h3 {
+            margin-bottom: 0.5rem;
+            color: #374151;
+        }
+        
+        /* 隱藏元素 */
+        .hidden {
+            display: none;
+        }
+        
+        /* 載入動畫 */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    
+        /* 除錯資訊區塊 */
+        .debug-info {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: #555;
+            white-space: pre-wrap;
+            font-family: monospace;
+            flex-shrink: 0; /* 防止此元素在 Flex 容器中被壓縮 */
+            padding-right: 15px; /* 為捲動條預留空間 */
+            /* 新增：為除錯資訊設定最大高度，使其可以獨立捲動 */
+            max-height: 200px; /* 您可以調整這個值 */
+            overflow-y: auto;
+        }
+    
+        /* 主要表單和用戶資訊區塊 */
+        /* 這些部分應該在容器內可以佔用空間，並保持可見 */
+        #loginSection, 
+        #userSection {
+            flex-shrink: 0; /* 防止它們在內容變多時被壓縮 */
+            /* 如果您希望它們也有內部捲動，可以添加 max-height 和 overflow-y: auto */
+            /* max-height: 400px; */ /* 示例值 */
+            /* overflow-y: auto; */
+        }
+    
+        /* 訊息區域 */
+        #messageDiv {
+            flex-shrink: 0; /* 防止訊息區塊被壓縮 */
+            margin-bottom: 1rem; /* 保持間距 */
+            padding-right: 15px; /* 為捲動條預留空間，防止內容被遮擋 */
+        }
+    
+        /* 捲動條樣式 (僅適用於 Webkit 瀏覽器 - Chrome, Safari) */
+        .container::-webkit-scrollbar,
+        #loginSection::-webkit-scrollbar, /* 如果 #loginSection 有內部捲動 */
+        #userSection::-webkit-scrollbar, /* 如果 #userSection 有內部捲動 */
+        #messageDiv::-webkit-scrollbar, /* 如果 #messageDiv 有內部捲動 */
+        .config-info::-webkit-scrollbar,
+        .debug-info::-webkit-scrollbar {
+            width: 8px; /* 捲動條寬度 */
+        }
+    
+        .container::-webkit-scrollbar-track,
+        #loginSection::-webkit-scrollbar-track,
+        #userSection::-webkit-scrollbar-track,
+        #messageDiv::-webkit-scrollbar-track,
+        .config-info::-webkit-scrollbar-track,
+        .debug-info::-webkit-scrollbar-track {
+            background: #f1f1f1; /* 捲動條背景 */
+            border-radius: 10px;
+        }
+    
+        .container::-webkit-scrollbar-thumb,
+        #loginSection::-webkit-scrollbar-thumb,
+        #userSection::-webkit-scrollbar-thumb,
+        #messageDiv::-webkit-scrollbar-thumb,
+        .config-info::-webkit-scrollbar-thumb,
+        .debug-info::-webkit-scrollbar-thumb {
+            background: #888; /* 捲動條顏色 */
+            border-radius: 10px;
+        }
+    
+        .container::-webkit-scrollbar-thumb:hover,
+        #loginSection::-webkit-scrollbar-thumb:hover,
+        #userSection::-webkit-scrollbar-thumb:hover,
+        #messageDiv::-webkit-scrollbar-thumb:hover,
+        .config-info::-webkit-scrollbar-thumb:hover,
+        .debug-info::-webkit-scrollbar-thumb:hover {
+            background: #555; /* 捲動條懸停顏色 */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🔐 Tsai Cognito</h1>
+            <p>安全的用戶認證系統</p>
+        </div>
+        
+        <div id="loginSection">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="showTab('login')">登入</button>
+                <button class="tab-button" onclick="showTab('register')">註冊</button>
+            </div>
+            
+            <div id="messageDiv"></div>
+            
+            <!-- 登入表單 -->
+            <div id="loginForm" class="form-section active">
+                <form onsubmit="signIn(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">電子郵件</label>
+                        <input type="email" id="loginEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">密碼</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="loginBtn">登入</button>
+                </form>
+            </div>
+            
+            <!-- 註冊表單 -->
+            <div id="registerForm" class="form-section">
+                <form onsubmit="signUp(event)">
+                    <div class="form-group">
+                        <label for="registerEmail">電子郵件</label>
+                        <input type="email" id="registerEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerPassword">密碼</label>
+                        <input type="password" id="registerPassword" required minlength="8">
+                        <small>密碼至少需要8個字符</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">確認密碼</label>
+                        <input type="password" id="confirmPassword" required minlength="8">
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="registerBtn">註冊</button>
+                </form>
+            </div>
+            
+            <!-- 驗證表單 -->
+            <div id="verifyForm" class="form-section">
+                <div class="form-group">
+                    <label for="verificationCode">驗證碼</label>
+                    <input type="text" id="verificationCode" required>
+                    <small>請查看您的電子郵件並輸入驗證碼</small>
+                </div>
+                <button onclick="confirmSignUp()" class="btn btn-primary" id="verifyBtn">驗證帳戶</button>
+            </div>
+        </div>
+        
+        <!-- 登入後的用戶資訊 -->
+        <div id="userSection" class="user-info hidden">
+            <h2>歡迎！</h2>
+            <p id="userEmail"></p>
+            <p id="userId"></p>
+            <button onclick="signOut()" class="btn btn-secondary">登出</button>
+        </div>
+        
+        <!-- 配置資訊 -->
+        <div class="config-info">
+            <h3>系統配置</h3>
+            <p>Region: <span id="configRegion">'{{REGION}}'</span></p>
+            <p>User Pool: <span id="configUserPool">'{{USER_POOL_ID}}'</span></p>
+            <p>Client ID: <span id="configClientId">'{{CLIENT_ID}}'</span></p>
+            <p>Status: <span id="configStatus">檢查中...</span></p>
+        </div>
+
+        <!-- 除錯資訊 -->
+        <div id="debugInfo" class="debug-info hidden"></div>
+    </div>
+
+    <script>
+        // 除錯函數
+        function debugLog(message) {
+            console.log(message);
+            const debugDiv = document.getElementById('debugInfo');
+            debugDiv.style.display = 'block';
+            debugDiv.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+        }
+
+        // 全域變數
+        let userPool = null;
+        let currentUser = null;
+        let pendingUsername = null;
+        
+        // AWS Cognito 配置 - 這些值將被部署腳本自動替換
+        const config = {
+            region: '{{REGION}}',
+            userPoolId: '{{USER_POOL_ID}}',
+            clientId: '{{CLIENT_ID}}'
+        };
+        
+        // 檢查 SDK 載入狀態
+        function checkSDKLoaded() {
+            debugLog('檢查 SDK 載入狀態...');
+            
+            if (typeof AWS === 'undefined') {
+                debugLog('AWS SDK 未載入');
+                return false;
+            }
+            
+            if (typeof AmazonCognitoIdentity === 'undefined') {
+                debugLog('Amazon Cognito Identity SDK 未載入');
+                return false;
+            }
+            
+            debugLog('所有 SDK 已載入');
+            return true;
+        }
+        
+        // 初始化函數
+        function initializeCognito() {
+            try {
+                debugLog('開始初始化 Cognito...');
+                debugLog('配置: ' + JSON.stringify(config, null, 2));
+                
+                // 檢查配置是否有效
+                // 檢查配置是否有效 (修正後的邏輯)
+                if (!config.userPoolId) {
+                    throw new Error('User Pool ID 未配置');
+                }
+                
+                if (!config.clientId) {
+                    throw new Error('Client ID 未配置');
+                }
+                
+                if (!config.region) {
+                    throw new Error('Region 未配置');
+                }
+                // 設置 AWS 配置
+                AWS.config.region = config.region;
+                debugLog('AWS 區域設置為: ' + config.region);
+                
+                // 創建 User Pool
+                const poolData = {
+                    UserPoolId: config.userPoolId,
+                    ClientId: config.clientId
+                };
+                
+                userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+                debugLog('User Pool 創建成功');
+                
+                // 更新配置顯示
+                document.getElementById('configRegion').textContent = config.region;
+                document.getElementById('configUserPool').textContent = config.userPoolId;
+                document.getElementById('configClientId').textContent = config.clientId;
+                document.getElementById('configStatus').textContent = '已連接';
+                document.getElementById('configStatus').style.color = '#10b981';
+                
+                debugLog('Cognito 初始化成功');
+                
+                // 檢查是否已登入
+                checkCurrentUser();
+                
+            } catch (error) {
+                debugLog('Cognito 初始化失敗: ' + error.message);
+                document.getElementById('configStatus').textContent = '連接失敗: ' + error.message;
+                document.getElementById('configStatus').style.color = '#ef4444';
+                showMessage('系統初始化失敗: ' + error.message, 'error');
+            }
+        }
+        
+        // 檢查當前用戶
+        function checkCurrentUser() {
+            if (!userPool) {
+                debugLog('User Pool 未初始化');
+                return;
+            }
+            
+            try {
+                currentUser = userPool.getCurrentUser();
+                debugLog('當前用戶: ' + (currentUser ? currentUser.getUsername() : 'null'));
+                
+                if (currentUser != null) {
+                    currentUser.getSession(function(err, session) {
+                        if (err) {
+                            debugLog('獲取會話失敗: ' + err.message);
+                            return;
+                        }
+                        
+                        debugLog('會話狀態: ' + session.isValid());
+                        if (session.isValid()) {
+                            showUserInfo(currentUser);
+                        }
+                    });
+                }
+            } catch (error) {
+                debugLog('檢查當前用戶失敗: ' + error.message);
+            }
+        }
+        
+        // 等待 SDK 載入的函數
+        function waitForSDKs(callback, maxAttempts = 10, currentAttempt = 0) {
+            if (checkSDKLoaded()) {
+                callback();
+                return;
+            }
+            
+            if (currentAttempt >= maxAttempts) {
+                debugLog('SDK 載入超時');
+                showMessage('AWS SDK 載入失敗，請重新整理頁面', 'error');
+                return;
+            }
+            
+            debugLog(`等待 SDK 載入... (嘗試 ${currentAttempt + 1}/${maxAttempts})`);
+            setTimeout(() => {
+                waitForSDKs(callback, maxAttempts, currentAttempt + 1);
+            }, 1000);
+        }
+        
+        // 頁面載入完成事件
+        document.addEventListener('DOMContentLoaded', function() {
+            debugLog('DOM 載入完成');
+            
+            // 等待 SDK 載入
+            waitForSDKs(function() {
+                debugLog('SDK 載入完成，開始初始化');
+                initializeCognito();
+            });
+        });
+        
+        // 備用初始化（window.onload）
+        window.addEventListener('load', function() {
+            debugLog('頁面完全載入');
+            
+            // 如果還沒初始化，再試一次
+            if (!userPool) {
+                waitForSDKs(function() {
+                    debugLog('備用初始化開始');
+                    initializeCognito();
+                });
+            }
+        });
+        
+        function showTab(tab) {
+            // 清除之前的錯誤訊息
+            clearMessage();
+            
+            // 切換標籤按鈕
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // 切換表單
+            document.querySelectorAll('.form-section').forEach(section => section.classList.remove('active'));
+            document.getElementById(tab + 'Form').classList.add('active');
+        }
+        
+        function showMessage(message, type = 'info') {
+            const messageDiv = document.getElementById('messageDiv');
+            messageDiv.innerHTML = `<div class="message ${type}">${message}</div>`;
+            
+            // 自動滾動到訊息
+            messageDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        function clearMessage() {
+            document.getElementById('messageDiv').innerHTML = '';
+        }
+        
+        function showLoading(buttonId, text = '處理中...') {
+            const button = document.getElementById(buttonId);
+            button.disabled = true;
+            button.innerHTML = `<span class="loading"></span>${text}`;
+        }
+        
+        function hideLoading(buttonId, text) {
+            const button = document.getElementById(buttonId);
+            button.disabled = false;
+            button.innerHTML = text;
+        }
+        
+        function signUp(event) {
+            event.preventDefault();
+            
+            if (!userPool) {
+                showMessage('系統尚未初始化，請重新整理頁面', 'error');
+                return;
+            }
+            
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            // 驗證輸入
+            if (!email || !password || !confirmPassword) {
+                showMessage('請填寫所有欄位', 'error');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showMessage('密碼不匹配', 'error');
+                return;
+            }
+            
+            if (password.length < 8) {
+                showMessage('密碼至少需要8個字符', 'error');
+                return;
+            }
+            
+            showLoading('registerBtn', '註冊中...');
+            clearMessage();
+            
+            const attributeList = [
+                new AmazonCognitoIdentity.CognitoUserAttribute({
+                    Name: 'email',
+                    Value: email
+                })
+            ];
+            
+            debugLog('開始註冊用戶: ' + email);
+            
+            userPool.signUp(email, password, attributeList, null, function(err, result) {
+                hideLoading('registerBtn', '註冊');
+                
+                if (err) {
+                    debugLog('註冊失敗: ' + err.message);
+                    let errorMessage = '註冊失敗: ';
+                    
+                    switch (err.code) {
+                        case 'UsernameExistsException':
+                            errorMessage += '此電子郵件已被註冊';
+                            break;
+                        case 'InvalidPasswordException':
+                            errorMessage += '密碼不符合要求';
+                            break;
+                        case 'InvalidParameterException':
+                            errorMessage += '參數無效';
+                            break;
+                        default:
+                            errorMessage += err.message;
+                    }
+                    
+                    showMessage(errorMessage, 'error');
+                    return;
+                }
+                
+                debugLog('註冊成功: ' + result.user.getUsername());
+                pendingUsername = email;
+                showMessage('註冊成功！請查看您的電子郵件並輸入驗證碼。', 'success');
+                
+                // 切換到驗證表單
+                document.querySelectorAll('.form-section').forEach(section => section.classList.remove('active'));
+                document.getElementById('verifyForm').classList.add('active');
+            });
+        }
+        
+        function confirmSignUp() {
+            const verificationCode = document.getElementById('verificationCode').value.trim();
+            
+            if (!verificationCode) {
+                showMessage('請輸入驗證碼', 'error');
+                return;
+            }
+            
+            if (!pendingUsername) {
+                showMessage('請先註冊帳戶', 'error');
+                return;
+            }
+            
+            if (!userPool) {
+                showMessage('系統尚未初始化，請重新整理頁面', 'error');
+                return;
+            }
+            
+            showLoading('verifyBtn', '驗證中...');
+            clearMessage();
+            
+            const userData = {
+                Username: pendingUsername,
+                Pool: userPool
+            };
+            
+            const cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+            
+            debugLog('開始驗證用戶: ' + pendingUsername);
+            
+            cognitoUser.confirmRegistration(verificationCode, true, function(err, result) {
+                hideLoading('verifyBtn', '驗證帳戶');
+                
+                if (err) {
+                    debugLog('驗證失敗: ' + err.message);
+                    let errorMessage = '驗證失敗: ';
+                    
+                    switch (err.code) {
+                        case 'CodeMismatchException':
+                            errorMessage += '驗證碼不正確';
+                            break;
+                        case 'ExpiredCodeException':
+                            errorMessage += '驗證碼已過期';
+                            break;
+                        default:
+                            errorMessage += err.message;
+                    }
+                    
+                    showMessage(errorMessage, 'error');
+                    return;
+                }
+                
+                debugLog('驗證成功');
+                showMessage('帳戶驗證成功！請使用您的帳戶登入。', 'success');
+                
+                // 切換到登入表單
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelector('.tab-button').classList.add('active');
+                document.querySelectorAll('.form-section').forEach(section => section.classList.remove('active'));
+                document.getElementById('loginForm').classList.add('active');
+                
+                // 自動填入登入表單
+                document.getElementById('loginEmail').value = pendingUsername;
+                
+                pendingUsername = null;
+            });
+        }
+        
+        function signIn(event) {
+            event.preventDefault();
+            
+            if (!userPool) {
+                showMessage('系統尚未初始化，請重新整理頁面', 'error');
+                return;
+            }
+            
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            
+            if (!email || !password) {
+                showMessage('請填寫電子郵件和密碼', 'error');
+                return;
+            }
+            
+            showLoading('loginBtn', '登入中...');
+            clearMessage();
+            
+            const authenticationData = {
+                Username: email,
+                Password: password,
+            };
+            
+            const authenticationDetails = new AmazonCognitoIdentity.AuthenticationDetails(authenticationData);
+            
+            const userData = {
+                Username: email,
+                Pool: userPool
+            };
+            
+            const cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+            
+            debugLog('開始登入用戶: ' + email);
+            
+            cognitoUser.authenticateUser(authenticationDetails, {
+                onSuccess: function(result) {
+                    debugLog('登入成功');
+                    hideLoading('loginBtn', '登入');
+                    showMessage('登入成功！', 'success');
+                    
+                    setTimeout(() => {
+                        showUserInfo(cognitoUser);
+                    }, 1000);
+                },
+                
+                onFailure: function(err) {
+                    debugLog('登入失敗: ' + err.message);
+                    hideLoading('loginBtn', '登入');
+                    
+                    let errorMessage = '登入失敗: ';
+                    
+                    switch (err.code) {
+                        case 'NotAuthorizedException':
+                            errorMessage += '電子郵件或密碼不正確';
+                            break;
+                        case 'UserNotConfirmedException':
+                            errorMessage += '帳戶尚未驗證，請檢查您的電子郵件';
+                            pendingUsername = email;
+                            // 切換到驗證表單
+                            setTimeout(() => {
+                                document.querySelectorAll('.form-section').forEach(section => section.classList.remove('active'));
+                                document.getElementById('verifyForm').classList.add('active');
+                            }, 2000);
+                            break;
+                        case 'PasswordResetRequiredException':
+                            errorMessage += '需要重置密碼';
+                            break;
+                        case 'UserNotFoundException':
+                            errorMessage += '用戶不存在';
+                            break;
+                        case 'TooManyRequestsException':
+                            errorMessage += '請求太頻繁，請稍後再試';
+                            break;
+                        default:
+                            errorMessage += err.message;
+                    }
+                    
+                    showMessage(errorMessage, 'error');
+                },
+                
+                onMfaRequired: function(codeDeliveryDetails) {
+                    debugLog('需要 MFA 驗證');
+                    showMessage('需要多重驗證，請檢查您的裝置', 'info');
+                }
+            });
+        }
+        
+        function showUserInfo(cognitoUser) {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('userSection').classList.remove('hidden');
+            
+            cognitoUser.getSession(function(err, session) {
+                if (err) {
+                    debugLog('獲取會話失敗: ' + err.message);
+                    showMessage('獲取用戶資訊失敗', 'error');
+                    return;
+                }
+                
+                debugLog('用戶會話獲取成功');
+                const payload = session.getIdToken().payload;
+                debugLog('用戶資訊: ' + JSON.stringify(payload, null, 2));
+                
+                document.getElementById('userEmail').textContent = `電子郵件: ${payload.email || '未知'}`;
+                document.getElementById('userId').textContent = `用戶 ID: ${payload.sub || '未知'}`;
+            });
+        }
+        
+        function signOut() {
+            if (!userPool) {
+                debugLog('User Pool 未初始化');
+                return;
+            }
+            
+            const cognitoUser = userPool.getCurrentUser();
+            if (cognitoUser != null) {
+                cognitoUser.signOut();
+                debugLog('用戶已登出');
+            }
+            
+            // 重置 UI
+            document.getElementById('userSection').classList.add('hidden');
+            document.getElementById('loginSection').classList.remove('hidden');
+            
+            // 重置表單
+            document.querySelectorAll('input').forEach(input => input.value = '');
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.tab-button').classList.add('active');
+            document.querySelectorAll('.form-section').forEach(section => section.classList.remove('active'));
+            document.getElementById('loginForm').classList.add('active');
+            
+            clearMessage();
+            showMessage('已成功登出', 'success');
+            
+            // 清除全域變數
+            currentUser = null;
+            pendingUsername = null;
+        }
+        
+        // 錯誤處理
+        window.addEventListener('error', function(event) {
+            debugLog('JavaScript 錯誤: ' + event.error.message);
+            console.error('JavaScript 錯誤:', event.error);
+        });
+        
+        // 網路狀態檢查
+        window.addEventListener('online', function() {
+            debugLog('網路連接恢復');
+        });
+        
+        window.addEventListener('offline', function() {
+            debugLog('網路連接中斷');
+            showMessage('網路連接中斷，某些功能可能無法使用', 'error');
+        });
+    </script>
+</body>
+</html>
