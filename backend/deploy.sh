@@ -114,19 +114,19 @@ if [ $? -eq 0 ]; then
     # 更新 HTML 文件中的配置
     log_step "更新網站配置..."
 
-    cp website/template-index.html website/index.html
+    cp ../frontend/website/template-index.html ../frontend/website/index.html
     
     # 使用 sed 替換佔位符
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # macOS
-        sed -i '' "s|{{USER_POOL_ID}}|$USER_POOL_ID|g" website/index.html
-        sed -i '' "s|{{CLIENT_ID}}|$CLIENT_ID|g" website/index.html
-        sed -i '' "s|{{REGION}}|$AWS_REGION|g" website/index.html
+        sed -i '' "s|{{USER_POOL_ID}}|$USER_POOL_ID|g" ../frontend/website/index.html
+        sed -i '' "s|{{CLIENT_ID}}|$CLIENT_ID|g" ../frontend/website/index.html
+        sed -i '' "s|{{REGION}}|$AWS_REGION|g" ../frontend/website/index.html
     else
         # Linux
-        sed -i "s|{{USER_POOL_ID}}|$USER_POOL_ID|g" website/index.html
-        sed -i "s|{{CLIENT_ID}}|$CLIENT_ID|g" website/index.html
-        sed -i "s|{{REGION}}|$AWS_REGION|g" website/index.html
+        sed -i "s|{{USER_POOL_ID}}|$USER_POOL_ID|g" ../frontend/website/index.html
+        sed -i "s|{{CLIENT_ID}}|$CLIENT_ID|g" ../frontend/website/index.html
+        sed -i "s|{{REGION}}|$AWS_REGION|g" ../frontend/website/index.html
     fi
     
     log_success "網站配置更新完成！"
@@ -139,7 +139,7 @@ if [ $? -eq 0 ]; then
         BUCKET_NAME=$(aws cloudformation describe-stack-resources --stack-name "$STACK_NAME" --query 'StackResources[?ResourceType==`AWS::S3::Bucket`].PhysicalResourceId' --output text)
         
         if [ -n "$BUCKET_NAME" ] && [ "$BUCKET_NAME" != "None" ]; then
-            aws s3 sync website/ s3://$BUCKET_NAME/ --delete
+            aws s3 sync ../frontend/website/ s3://$BUCKET_NAME/ --delete
             log_success "網站文件同步完成！"
         fi
     fi
@@ -173,7 +173,7 @@ if [ $? -eq 0 ]; then
     else
         echo ""
         echo -e "${YELLOW}📁 本地測試：${NC}"
-        echo -e "   您可以直接打開 website/index.html 文件來測試應用"
+        echo -e "   您可以直接打開 ../frontend/website/index.html 文件來測試應用"
     fi
     
     echo -e "${CYAN}================================================${NC}"

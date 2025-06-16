@@ -145,7 +145,7 @@ const websiteBucket = new s3.Bucket(this, 'WebsiteBucket', {
 
 // 部署網頁文件
 new s3deploy.BucketDeployment(this, 'DeployWebsite', {
-  sources: [s3deploy.Source.asset('./website')],
+  sources: [s3deploy.Source.asset('../frontend/website')],
   destinationBucket: websiteBucket,
 });
 
