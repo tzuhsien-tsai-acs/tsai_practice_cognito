@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-# 顏色定義
+# 色の定義
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -9,7 +9,7 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# 日誌函數
+# ログ関数
 log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
 log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
@@ -17,15 +17,15 @@ log_error() { echo -e "${RED}❌ $1${NC}"; }
 log_step() { echo -e "${PURPLE}🚀 $1${NC}"; }
 
 echo -e "${CYAN}================================================${NC}"
-echo -e "${CYAN}🚀 Tsai Cognito 應用自動部署腳本${NC}"
+echo -e "${CYAN}🚀 Tsai Cognito アプリケーション自動デプロイスクリプト${NC}"
 echo -e "${CYAN}================================================${NC}"
 
-# 檢查必要工具
-log_step "檢查環境要求..."
+# 必要なツールのチェック
+log_step "環境要件を確認中..."
 
 check_command() {
     if ! command -v "$1" >/dev/null 2>&1; then
-        log_error "$1 未安裝。請先安裝: $2"
+        log_error "$1 はインストールされていません。先にインストールしてください: $2"
         exit 1
     fi
 }
@@ -35,88 +35,87 @@ check_command() {
 #check_command "node" "Node.js"
 #check_command "npm" "Node.js"
 
-# 檢查 jq（用於 JSON 處理）
+# jq のチェック（JSON処理用）
 if ! command -v jq >/dev/null 2>&1; then
-    log_warning "jq 未安裝，嘗試安裝..."
+    log_warning "jq はインストールされていません。インストールを試みます..."
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        brew install jq 2>/dev/null || { log_error "請手動安裝 jq: brew install jq"; exit 1; }
+        brew install jq 2>/dev/null || { log_error "jq を手動でインストールしてください: brew install jq"; exit 1; }
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        sudo apt-get update && sudo apt-get install -y jq 2>/dev/null || { log_error "請手動安裝 jq"; exit 1; }
+        sudo apt-get update && sudo apt-get install -y jq 2>/dev/null || { log_error "jq を手動でインストールしてください"; exit 1; }
     else
-        log_error "請手動安裝 jq"
+        log_error "jq を手動でインストールしてください"
         exit 1
     fi
 fi
 
-# 檢查 AWS 憑證
-log_info "檢查 AWS 憑證..."
+# AWS 認証情報のチェック
+log_info "AWS 認証情報を確認中..."
 if ! aws sts get-caller-identity >/dev/null 2>&1; then
-    log_error "AWS 憑證未配置。請運行: aws configure"
+    log_error "AWS 認証情報が設定されていません。以下を実行してください: aws configure"
     exit 1
 fi
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 AWS_REGION=$(aws configure get region || echo "us-east-1")
-log_success "環境檢查通過 (Account: $ACCOUNT_ID, Region: $AWS_REGION)"
+log_success "環境チェックを通過しました (Account: $ACCOUNT_ID, Region: $AWS_REGION)"
 
-# 創建網站目錄和文件
-# 安裝依賴
-#log_step "安裝 NPM 依賴..."
+# ウェブサイトディレクトリとファイルの作成
+# 依存関係のインストール
+#log_step "NPM 依存関係をインストール中..."
 npm install
 
-# Bootstrap CDK（如果需要）
-log_step "Bootstrap CDK..."
+# CDK のブートストラップ（必要な場合）
+log_step "CDK をブートストラップ中..."
 npx aws-cdk bootstrap --require-approval never
 
-# 部署堆疊
-log_step "部署 CDK 堆疊..."
+# スタックのデプロイ
+log_step "CDK スタックをデプロイ中..."
 npx aws-cdk deploy --no-notices --require-approval never
 
 if [ $? -eq 0 ]; then
-    log_success "CDK 部署成功！"
+    log_success "CDK デプロイが成功しました！"
     
-    # 獲取堆疊名稱
+    # スタック名の取得
     STACK_NAME=$(npx aws-cdk --no-notices list | head -n 1)
-    log_info "堆疊名稱: $STACK_NAME"
+    log_info "スタック名: $STACK_NAME"
     
-    # 獲取輸出值
-    log_step "獲取部署輸出值..."
+    # 出力値の取得
+    log_step "デプロイ出力値を取得中..."
     OUTPUTS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].Outputs' --output json)
     
-    # 提取配置值
+    # 設定値の抽出
     USER_POOL_ID=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="UserPoolId" or .OutputKey=="UserPool") | .OutputValue' | head -n 1)
     CLIENT_ID=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="UserPoolClientId") | .OutputValue')
     IDENTITY_POOL_ID=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="IdentityPoolId") | .OutputValue')
     WEBSITE_URL=$(echo "$OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebsiteURL") | .OutputValue')
     
-    # 如果沒有從輸出獲取到 Region，使用當前配置的 Region
+    # 出力から Region を取得できなかった場合、現在の設定済みの Region を使用
     if [ -z "$AWS_REGION" ] || [ "$AWS_REGION" = "null" ]; then
         AWS_REGION=$(aws configure get region || echo "us-east-1")
     fi
     
-    # 驗證必要的配置值
+    # 必要な設定値の検証
     if [ -z "$USER_POOL_ID" ] || [ "$USER_POOL_ID" = "null" ]; then
-        log_error "無法獲取 User Pool ID"
+        log_error "User Pool ID を取得できませんでした"
         exit 1
     fi
     
     if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "null" ]; then
-        log_error "無法獲取 Client ID"
+        log_error "Client ID を取得できませんでした"
         exit 1
     fi
     
-
-    # ... (在 CLIENT_ID, USER_POOL_ID, AWS_REGION 賦值之後) ...
-    log_info "DEBUG: Extracted USER_POOL_ID: '$USER_POOL_ID'"
-    log_info "DEBUG: Extracted CLIENT_ID: '$CLIENT_ID'"
-    log_info "DEBUG: Extracted AWS_REGION: '$AWS_REGION'"
-# ... (sed 命令開始) ...
-    # 更新 HTML 文件中的配置
-    log_step "更新網站配置..."
+    # ... (CLIENT_ID, USER_POOL_ID, AWS_REGION の代入後) ...
+    log_info "DEBUG: 抽出された USER_POOL_ID: '$USER_POOL_ID'"
+    log_info "DEBUG: 抽出された CLIENT_ID: '$CLIENT_ID'"
+    log_info "DEBUG: 抽出された AWS_REGION: '$AWS_REGION'"
+# ... (sed コマンド開始) ...
+    # HTML ファイル内の設定を更新
+    log_step "ウェブサイト設定を更新中..."
 
     cp ../frontend/website/template-index.html ../frontend/website/index.html
     
-    # 使用 sed 替換佔位符
+    # sed を使用してプレースホルダーを置換
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # macOS
         sed -i '' "s|{{USER_POOL_ID}}|$USER_POOL_ID|g" ../frontend/website/index.html
@@ -129,27 +128,27 @@ if [ $? -eq 0 ]; then
         sed -i "s|{{REGION}}|$AWS_REGION|g" ../frontend/website/index.html
     fi
     
-    log_success "網站配置更新完成！"
+    log_success "ウェブサイト設定の更新が完了しました！"
     
-    # 如果有 S3 網站，同步文件
+    # S3 ウェブサイトがある場合、ファイルを同期
     if [ "$WEBSITE_URL" != "null" ] && [ -n "$WEBSITE_URL" ]; then
-        log_step "同步網站文件到 S3..."
+        log_step "ウェブサイトファイルを S3 に同期中..."
         
-        # 從 CloudFormation 獲取 S3 bucket 名稱
+        # CloudFormation から S3 バケット名を取得
         BUCKET_NAME=$(aws cloudformation describe-stack-resources --stack-name "$STACK_NAME" --query 'StackResources[?ResourceType==`AWS::S3::Bucket`].PhysicalResourceId' --output text)
         
         if [ -n "$BUCKET_NAME" ] && [ "$BUCKET_NAME" != "None" ]; then
             aws s3 sync ../frontend/website/ s3://$BUCKET_NAME/ --delete
-            log_success "網站文件同步完成！"
+            log_success "ウェブサイトファイルの同期が完了しました！"
         fi
     fi
     
-    # 顯示部署結果
+    # デプロイ結果の表示
     echo ""
     echo -e "${CYAN}================================================${NC}"
-    echo -e "${GREEN}🎉 部署完成！${NC}"
+    echo -e "${GREEN}🎉 デプロイ完了！${NC}"
     echo -e "${CYAN}================================================${NC}"
-    echo -e "${BLUE}📋 資源資訊:${NC}"
+    echo -e "${BLUE}📋 リソース情報:${NC}"
     echo -e "   Region: ${GREEN}$AWS_REGION${NC}"
     echo -e "   User Pool ID: ${GREEN}$USER_POOL_ID${NC}"
     echo -e "   Client ID: ${GREEN}$CLIENT_ID${NC}"
@@ -159,26 +158,26 @@ if [ $? -eq 0 ]; then
     fi
     
     if [ "$WEBSITE_URL" != "null" ] && [ -n "$WEBSITE_URL" ]; then
-        echo -e "   網站 URL: ${GREEN}$WEBSITE_URL${NC}"
+        echo -e "   ウェブサイト URL: ${GREEN}$WEBSITE_URL${NC}"
         echo ""
-        echo -e "${GREEN}🌐 您的網站已準備就緒！${NC}"
-        echo -e "${YELLOW}📱 請訪問上述 URL 來測試登入和註冊功能${NC}"
+        echo -e "${GREEN}🌐 あなたのウェブサイトは準備完了です！${NC}"
+        echo -e "${YELLOW}📱 上記 URL にアクセスしてログインとサインアップ機能をテストしてください${NC}"
         echo ""
-        echo -e "${BLUE}💡 測試步驟：${NC}"
-        echo -e "   1. 點擊 '註冊' 標籤"
-        echo -e "   2. 輸入電子郵件和密碼（至少8位字符）"
-        echo -e "   3. 檢查您的電子郵件獲取驗證碼"
-        echo -e "   4. 輸入驗證碼完成註冊"
-        echo -e "   5. 使用註冊的帳戶登入"
+        echo -e "${BLUE}💡 テスト手順：${NC}"
+        echo -e "   1. 'サインアップ' タブをクリック"
+        echo -e "   2. メールアドレスとパスワード（8文字以上）を入力"
+        echo -e "   3. メールで認証コードを確認"
+        echo -e "   4. 認証コードを入力してサインアップを完了"
+        echo -e "   5. 登録したアカウントでログイン"
     else
         echo ""
-        echo -e "${YELLOW}📁 本地測試：${NC}"
-        echo -e "   您可以直接打開 ../frontend/website/index.html 文件來測試應用"
+        echo -e "${YELLOW}📁 ローカルテスト：${NC}"
+        echo -e "   ../frontend/website/index.html ファイルを直接開いてアプリケーションをテストできます"
     fi
     
     echo -e "${CYAN}================================================${NC}"
     
 else
-    log_error "CDK 部署失敗"
+    log_error "CDK デプロイが失敗しました"
     exit 1
 fi

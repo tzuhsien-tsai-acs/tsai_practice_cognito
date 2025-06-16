@@ -1,0 +1,476 @@
+Resources:
+  tsaiuserpoolsmsRole4506914A:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: CdkWorkshopStacktsaiuserpool8C7EBD79
+            Effect: Allow
+            Principal:
+              Service: cognito-idp.amazonaws.com
+        Version: '2012-10-17'
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action: sns:Publish
+                Effect: Allow
+                Resource: '*'
+            Version: '2012-10-17'
+          PolicyName: sns-publish
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/tsai_userpool/smsRole/Resource
+  tsaiuserpoolE4823E71:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AutoVerifiedAttributes:
+        - email
+      EmailVerificationMessage: The verification code to your new account is {####}
+      EmailVerificationSubject: Verify your new account
+      EnabledMfas:
+        - SMS_MFA
+        - SOFTWARE_TOKEN_MFA
+      MfaConfiguration: OPTIONAL
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 3
+      SmsConfiguration:
+        ExternalId: CdkWorkshopStacktsaiuserpool8C7EBD79
+        SnsCallerArn: !GetAtt tsaiuserpoolsmsRole4506914A.Arn
+      SmsVerificationMessage: The verification code to your new account is {####}
+      UsernameAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: false
+      UserPoolName: tsai_userpool
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailMessage: The verification code to your new account is {####}
+        EmailSubject: Verify your new account
+        SmsMessage: The verification code to your new account is {####}
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/tsai_userpool/Resource
+  tsaiuserpooltsaicdkappclientFF514478:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref tsaiuserpoolE4823E71
+      AllowedOAuthFlows:
+        - implicit
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - profile
+        - phone
+        - email
+        - openid
+        - aws.cognito.signin.user.admin
+      CallbackURLs:
+        - https://example.com
+      ClientName: tsai-cdk-app-client
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_CUSTOM_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      GenerateSecret: false
+      SupportedIdentityProviders:
+        - COGNITO
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/tsai_userpool/tsai-cdk-app-client/Resource
+  tsaiIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      AllowUnauthenticatedIdentities: true
+      CognitoIdentityProviders:
+        - ClientId: !Ref tsaiuserpooltsaicdkappclientFF514478
+          ProviderName: !GetAtt tsaiuserpoolE4823E71.ProviderName
+      IdentityPoolName: tsai-IdentityPool
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/tsai-IdentityPool
+  CognitoDefaultAuthenticatedRoleC5D5C31E:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref tsaiIdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: authenticated
+            Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+        Version: '2012-10-17'
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/CognitoDefaultAuthenticatedRole/Resource
+  CognitoDefaultUnauthenticatedRoleABBF7267:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref tsaiIdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: unauthenticated
+            Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+        Version: '2012-10-17'
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/CognitoDefaultUnauthenticatedRole/Resource
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref tsaiIdentityPool
+      Roles:
+        authenticated: !GetAtt CognitoDefaultAuthenticatedRoleC5D5C31E.Arn
+        unauthenticated: !GetAtt CognitoDefaultUnauthenticatedRoleABBF7267.Arn
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/IdentityPoolRoleAttachment
+  WebsiteBucket75C24D94:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join
+        - ''
+        - - tsai-cognito-website-
+          - !Ref AWS::AccountId
+          - '-'
+          - !Ref AWS::Region
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: aws-cdk:auto-delete-objects
+          Value: 'true'
+        - Key: aws-cdk:cr-owned:13022901
+          Value: 'true'
+      WebsiteConfiguration:
+        IndexDocument: index.html
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/WebsiteBucket/Resource
+  WebsiteBucketPolicyE10E3262:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket75C24D94
+      PolicyDocument:
+        Statement:
+          - Action: s3:GetObject
+            Effect: Allow
+            Principal:
+              AWS: '*'
+            Resource: !Join
+              - ''
+              - - !GetAtt WebsiteBucket75C24D94.Arn
+                - /*
+          - Action:
+              - s3:DeleteObject*
+              - s3:GetBucket*
+              - s3:List*
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092.Arn
+            Resource:
+              - !GetAtt WebsiteBucket75C24D94.Arn
+              - !Join
+                - ''
+                - - !GetAtt WebsiteBucket75C24D94.Arn
+                  - /*
+        Version: '2012-10-17'
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/WebsiteBucket/Policy/Resource
+  WebsiteBucketAutoDeleteObjectsCustomResource8750E461:
+    Type: Custom::S3AutoDeleteObjects
+    Properties:
+      ServiceToken: !GetAtt CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F.Arn
+      BucketName: !Ref WebsiteBucket75C24D94
+    DependsOn:
+      - WebsiteBucketPolicyE10E3262
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/WebsiteBucket/AutoDeleteObjectsCustomResource/Default
+  CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role
+  CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Sub cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
+        S3Key: d28a3fa64d0bd6c7c6f1d6fd707d3e6dc5c81fe8f47891b89459b6492586997f.zip
+      Timeout: 900
+      MemorySize: 128
+      Handler: index.handler
+      Role: !GetAtt CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092.Arn
+      Runtime: nodejs18.x
+      Description: !Join
+        - ''
+        - - 'Lambda function for auto-deleting objects in '
+          - !Ref WebsiteBucket75C24D94
+          - ' S3 bucket.'
+    DependsOn:
+      - CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler
+      aws:asset:path: asset.d28a3fa64d0bd6c7c6f1d6fd707d3e6dc5c81fe8f47891b89459b6492586997f
+      aws:asset:property: Code
+  DeployWebsiteAwsCliLayer17DBC421:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      Content:
+        S3Bucket: !Sub cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
+        S3Key: b8ab94266984268614c3fb2824a1c3a55395746c48b28c003b08bc1d08688f3e.zip
+      Description: /opt/awscli/aws
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/DeployWebsite/AwsCliLayer/Resource
+      aws:asset:path: asset.b8ab94266984268614c3fb2824a1c3a55395746c48b28c003b08bc1d08688f3e.zip
+      aws:asset:is-bundled: false
+      aws:asset:property: Content
+  DeployWebsiteCustomResourceD116527B:
+    Type: Custom::CDKBucketDeployment
+    Properties:
+      ServiceToken: !GetAtt CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536.Arn
+      SourceBucketNames:
+        - !Sub cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
+      SourceObjectKeys:
+        - 71bff23a6b05db6e643520de004a75640f5a5325e1402b776f6d379a92d7962f.zip
+      DestinationBucketName: !Ref WebsiteBucket75C24D94
+      Prune: true
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/DeployWebsite/CustomResource/Default
+  CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+        - !Join
+          - ''
+          - - 'arn:'
+            - !Ref AWS::Partition
+            - ':iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/Resource
+  CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:GetBucket*
+              - s3:GetObject*
+              - s3:List*
+            Effect: Allow
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:'
+                  - !Ref AWS::Partition
+                  - ':s3:::'
+                  - !Sub cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
+                  - /*
+              - !Join
+                - ''
+                - - 'arn:'
+                  - !Ref AWS::Partition
+                  - ':s3:::'
+                  - !Sub cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
+          - Action:
+              - s3:Abort*
+              - s3:DeleteObject*
+              - s3:GetBucket*
+              - s3:GetObject*
+              - s3:List*
+              - s3:PutObject
+              - s3:PutObjectLegalHold
+              - s3:PutObjectRetention
+              - s3:PutObjectTagging
+              - s3:PutObjectVersionTagging
+            Effect: Allow
+            Resource:
+              - !GetAtt WebsiteBucket75C24D94.Arn
+              - !Join
+                - ''
+                - - !GetAtt WebsiteBucket75C24D94.Arn
+                  - /*
+        Version: '2012-10-17'
+      PolicyName: CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF
+      Roles:
+        - !Ref CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/DefaultPolicy/Resource
+  CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Sub cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
+        S3Key: 9eb41a5505d37607ac419321497a4f8c21cf0ee1f9b4a6b29aa04301aea5c7fd.zip
+      Role: !GetAtt CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265.Arn
+      Environment:
+        Variables:
+          AWS_CA_BUNDLE: /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+      Handler: index.handler
+      Layers:
+        - !Ref DeployWebsiteAwsCliLayer17DBC421
+      Runtime: python3.9
+      Timeout: 900
+    DependsOn:
+      - CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF
+      - CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/Resource
+      aws:asset:path: asset.9eb41a5505d37607ac419321497a4f8c21cf0ee1f9b4a6b29aa04301aea5c7fd
+      aws:asset:is-bundled: false
+      aws:asset:property: Code
+  CDKMetadata:
+    Type: AWS::CDK::Metadata
+    Properties:
+      Analytics: v2:deflate64:H4sIAAAAAAAA/21Ry2oDMQz8lt4dNaSH9pqkFAqFLhva6+LYauLEawU/Ehaz/155N69CT5oZydLImsHLM0wf5ClMlN5PrFlDXkWp9oKlJivaOBMJ8ldAXxFZsfxxV3wBS2vQxfvUTXnXDEzsLo/veU0W55GnbVsWe2FkC7mIpXCIFVmjukJH1IvwBHmR1B6H7mc0hlvxHz6ShQxYXjdZ48FSVybCmHq9CkKGgDHAvIReWNmutYTMHT9kh/4bfTDkxMq4jcVI7i05FYtyBVx6wX0vagyUvOJ9UojU3iiv93+q8nQ0Gr0YLPAlNjzrbKSxxUTDh1HWwPwU+JcHX6XfZ4qHNPzJkpw2gwHhSCPswuNxNoUZn3kXjJn4xAdoEeox/gJiniaNAgIAAA==
+    Metadata:
+      aws:cdk:path: CdkWorkshopStack/CDKMetadata/Default
+    Condition: CDKMetadataAvailable
+Outputs:
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref tsaiuserpoolE4823E71
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref tsaiuserpooltsaicdkappclientFF514478
+  IdentityPoolId:
+    Description: Cognito Identity Pool ID
+    Value: !Ref tsaiIdentityPool
+  Region:
+    Description: AWS Region
+    Value: !Ref AWS::Region
+  WebsiteURL:
+    Description: Website URL
+    Value: !GetAtt WebsiteBucket75C24D94.WebsiteURL
+Conditions:
+  CDKMetadataAvailable: !Or
+    - !Or
+      - !Equals
+        - !Ref AWS::Region
+        - af-south-1
+      - !Equals
+        - !Ref AWS::Region
+        - ap-east-1
+      - !Equals
+        - !Ref AWS::Region
+        - ap-northeast-1
+      - !Equals
+        - !Ref AWS::Region
+        - ap-northeast-2
+      - !Equals
+        - !Ref AWS::Region
+        - ap-south-1
+      - !Equals
+        - !Ref AWS::Region
+        - ap-southeast-1
+      - !Equals
+        - !Ref AWS::Region
+        - ap-southeast-2
+      - !Equals
+        - !Ref AWS::Region
+        - ca-central-1
+      - !Equals
+        - !Ref AWS::Region
+        - cn-north-1
+      - !Equals
+        - !Ref AWS::Region
+        - cn-northwest-1
+    - !Or
+      - !Equals
+        - !Ref AWS::Region
+        - eu-central-1
+      - !Equals
+        - !Ref AWS::Region
+        - eu-north-1
+      - !Equals
+        - !Ref AWS::Region
+        - eu-south-1
+      - !Equals
+        - !Ref AWS::Region
+        - eu-west-1
+      - !Equals
+        - !Ref AWS::Region
+        - eu-west-2
+      - !Equals
+        - !Ref AWS::Region
+        - eu-west-3
+      - !Equals
+        - !Ref AWS::Region
+        - me-south-1
+      - !Equals
+        - !Ref AWS::Region
+        - sa-east-1
+      - !Equals
+        - !Ref AWS::Region
+        - us-east-1
+      - !Equals
+        - !Ref AWS::Region
+        - us-east-2
+    - !Or
+      - !Equals
+        - !Ref AWS::Region
+        - us-west-1
+      - !Equals
+        - !Ref AWS::Region
+        - us-west-2
+Parameters:
+  BootstrapVersion:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cdk-bootstrap/hnb659fds/version
+    Description: Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]
+Rules:
+  CheckBootstrapVersion:
+    Assertions:
+      - Assert: !Not
+          - !Contains
+            - - '1'
+              - '2'
+              - '3'
+              - '4'
+              - '5'
+            - !Ref BootstrapVersion
+        AssertDescription: CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.
